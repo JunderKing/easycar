@@ -1,6 +1,7 @@
 const readline = require('readline-sync')
 const fs = require('fs')
 const addrSelect = require('./addrSelect.js')
+const carSelect = require('./carSelect.js')
 
 var check = function (userId) {
   var logs = fs.readFileSync('./database/pasngerLog.txt', 'utf-8').split('\n')
@@ -50,7 +51,7 @@ var callCar = function (userId) {
 }
 
 var matchDriver = function (endStr) {
-  var destData = fs.readFileSync('./database/driverDest.txt', 'utf-8').split('\n')
+  var destData = fs.readFileSync('./database/driverInfo.txt', 'utf-8').split('\n')
   var drivers = destData.filter(function (item) {
     if (!item) {
       return false
@@ -63,8 +64,44 @@ var matchDriver = function (endStr) {
       }
     })
   })
-  console.log('drivers:' + drivers)
+  // console.log('drivers:' + drivers)
   var len = drivers.length
+  if (len === 0) {
+    return false
+  }
+  var carIds = []
+  drivers.forEach(function (driverInfo) {
+    var carArr = driverInfo.split('###')[2].split('#-#')
+    carArr.forEach(function (item) {
+      var isExist = carIds.some(function (carId) {
+        if (item === carId) {
+          return true
+        }
+      })
+      if (!isExist) {
+        carIds.push(item)
+      }
+    })
+  })
+  if (carIds.length === 0) {
+    return false
+  }
+  var car = carSelect.invoke(carIds)
+  var carInfoArr = car.split('###')
+  console.log('车子信息：' + carInfoArr[1] + ' ' + carInfoArr[2] + ' ' + carInfoArr[3] + ' ' + carInfoArr[7])
+  console.log('价格：' + '起步价-' + carInfoArr[4] + '；时长价-' + carInfoArr[5] + '；里程价-' + carInfoArr[6])
+  if (car) {
+    var carId = car.split('###')[0]
+    drivers = drivers.filter(function (driverInfo) {
+      return driverInfo.split('###')[2].split('#-#').some(function (id) {
+        if (id === carId) {
+          return true
+        }
+      })
+    })
+  }
+
+  len = drivers.length
   if (len === 0) {
     return false
   }

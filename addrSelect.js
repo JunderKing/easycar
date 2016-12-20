@@ -40,7 +40,7 @@ var addSearch = function (addArr) {
   } else if (adds.length === 1) {
     return adds[0]
   } else {
-    console.log(adds)
+    console.log(adds.join('\n'))
     return addSearch(adds)
   }
 }

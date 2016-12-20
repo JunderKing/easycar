@@ -65,9 +65,13 @@ var checkOrInput = function (userId) {
     type: 'list',
     name: 'checkOrInput',
     message: '请选择',
-    choices: ['输入新地址', '查看已设定地址']
+    choices: ['添加车子', '输入新地址', '查看我的信息']
   }]).then(function (answers) {
-    if (answers.checkOrInput === '查看已设定地址') {
+    if (answers.checkOrInput === '添加车子') {
+      driver.addCar(userId)
+      driver.check(userId)
+    }
+    if (answers.checkOrInput === '查看我的信息') {
       driver.check(userId)
     }
     if (answers.checkOrInput === '输入新地址') {
