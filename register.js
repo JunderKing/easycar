@@ -1,6 +1,7 @@
 const readline = require('readline-sync')
 const fs = require('fs')
 const md5 = require('crypto-js/md5')
+const mysql = require('./mysql.js')
 
 var invoke = function () {
   var phoneNum = phoneNumInput()
