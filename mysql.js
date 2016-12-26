@@ -1,6 +1,6 @@
 const mysql = require('mysql')
-const co = require('co')
-const thunkify = require('thunkify')
+// const co = require('co')
+// const thunkify = require('thunkify')
 // const fs = require('fs')
 
 var db = mysql.createConnection({
@@ -11,11 +11,11 @@ var db = mysql.createConnection({
 
 db.connect()
 
-var dbquery = thunkify(db.query)
-co(function* () {
-  var result = yield dbquery('select * from addrs')
-  console.log(result)
-})
+// var dbquery = thunkify(db.query)
+// co(function* () {
+//  var result = yield dbquery('select * from addrs')
+//  console.log(result)
+// })
 
 var insert = function (table, obj, callback) {
   if (!table || !obj) {
