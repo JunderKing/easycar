@@ -12,7 +12,7 @@ driver_cars
 driver_d,car
 
 driver_dests
-driver_id, addr
+driver_id, addg
 
 pasnger_logs
 pasnger_id, driver_id, origin, dest, startTime, endTime, price

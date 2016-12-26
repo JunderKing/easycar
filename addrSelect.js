@@ -1,11 +1,15 @@
 const readline = require('readline-sync')
 const fs = require('fs')
+const mysql = require('./mysql.js')
 
 var invoke = function () {
-  var content = fs.readFileSync('./database/addrs.txt', 'utf-8')
-  var addArr = content.split('\r')
-  var searchResult = addSearch(addArr)
-  return searchResult
+  mysql.find('addrs', null, null, function (error, result) {
+    if (error) {
+      console.log(error)
+      return
+    }
+    var searchResult = addSearch(result)
+  })
 }
 
 var addSearch = function (addArr) {
@@ -13,35 +17,18 @@ var addSearch = function (addArr) {
   if (answer === 'back') {
     return false
   }
-  var adds = []
-  var charCode = answer.toLowerCase().charCodeAt(0)
-  if (answer.length === 1 && charCode >= 97 && charCode <= 122) {
-    adds = addArr.filter(function (item) {
-      if (item.split('-')[2] === answer.toUpperCase()) {
-        return true
-      }
-    })
-  } else if (parseInt(answer) > 100 && parseInt(answer) < 2007) {
-    adds = addArr.filter(function (item) {
-      if (item.split('-')[0] === answer) {
-        return true
-      }
-    })
+  var addrs = addArr.fileter(function (item) {
+    if (item.addr_id + '' === answer || item.initial === answer || item.addr === answer) {
+      return true
+    }
+  })
+  if (addrs.length === 0) {
+    console.log('未查询到相关地址！')
+    addSearch(addArr)
+  } else if (addrs.length === 1) {
+    return addrs
   } else {
-    adds = addArr.filter(function (item) {
-      if (item.split('-')[3].match(answer)) {
-        return true
-      }
-    })
-  }
-  if (adds.length === 0) {
-    console.log('未查询到相关地址!')
-    return addSearch(addArr)
-  } else if (adds.length === 1) {
-    return adds[0]
-  } else {
-    console.log(adds.join('\n'))
-    return addSearch(adds)
+    addSearch(addrs)
   }
 }
 

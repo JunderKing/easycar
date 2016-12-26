@@ -21,29 +21,29 @@ var invoke = function () {
 }
 // 手机号录入
 var phoneNumInput = function () {
-  do {
-    var answer = readline.question('请输入您的手机号（输入quit退出注册）:\n')
-    if (answer === 'quit') {
-      return false
+  var answer = readline.question('请输入您的手机号（输入quit退出注册）:\n')
+  if (answer === 'quit') {
+    return false
+  }
+  if (!(/^1[3|4|5|7|8]\d{9}$/.test(answer))) {
+    console.log('Phone number is not correct!')
+    phoneNumInput()
+    return
+  }
+  mysql.find('users', 'tel=' + answer, null, function (error, result) {
+    if (error) {
+      console.log(error)
+      return
     }
-    if (!(/^1[3|4|5|7|8]\d{9}$/.test(answer))) {
-      console.log('Phone number is not correct!')
-      continue
-    }
-    var infoData = fs.readFileSync('./database/users.txt', 'utf-8').split('\n')
-    var isExist = false
-    for (var i = 0; i < infoData.length; i++) {
-      if (infoData[i].split('###')[0] === answer) {
-        isExist = true
-        break
-      }
-    }
-    if (isExist) {
-      console.log('此用户已注册！')
+    if (result.length > 0) {
+      console.log('此用户已经注册！')
+      phoneNumInput()
     } else {
-      return answer
+      var passwd = passwdInput()
+      var role = roleChoose()
+      infoSave(answer, passwd, role)
     }
-  } while (true)
+  })
 }
 // 密码录入
 var passwdInput = function () {
