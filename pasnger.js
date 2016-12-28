@@ -75,7 +75,12 @@ var matchDriver = function (userId, origin, dest) {
           }
           var avlDrivers = []
           var timerId = setInterval(function () {
-            var driverInfo = driverArrs.shift()
+            var len = driverArrs.length
+            var index = Math.floor(Math.random() * len)
+            var driverInfo = driverArrs.splice(index, 1)[0]
+            if (!driverInfo) {
+              return clearInterval(timerId)
+            }
             avlDrivers.push(driverInfo)
             var logStr = 'ID:' + driverInfo.id + '；手机号:' + driverInfo.tel + ' 抢单！'
             console.log(logStr)
@@ -84,21 +89,25 @@ var matchDriver = function (userId, origin, dest) {
             input: process.stdin,
             output: process.stdout
           })
-          rl.question('请输入司机ID选择相应司机：\n', function (answer) {
-            var result = avlDrivers.filter(function (item) {
-              if (item.id + '' === answer) {
-                return true
+          var driverSelect = function () {
+            rl.question('请输入司机ID选择相应司机：\n', function (answer) {
+              var result = avlDrivers.filter(function (item) {
+                if (item.id + '' === answer) {
+                  return true
+                }
+              })
+              if (result.length === 0) {
+                console.log('未查询到相关司机！')
+                driverSelect()
+              } else {
+                console.log('订单确认成功！')
+                clearInterval(timerId)
+                rl.close()
+                start(userId, result[0], carInfo, origin, dest)
               }
             })
-            if (result.length === 0) {
-              console.log('未查询到相关司机！')
-            } else {
-              console.log('订单确认成功！')
-              clearInterval(timerId)
-              rl.close()
-              start(userId, result[0], carInfo, origin, dest)
-            }
-          })
+          }
+          driverSelect()
         })
       })
     })

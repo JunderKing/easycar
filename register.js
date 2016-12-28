@@ -2,7 +2,6 @@ const readline = require('readline-sync')
 const md5 = require('crypto-js/md5')
 const mysql = require('./mysql.js')
 const index = require('./index.js')
-const login = require('./login.js')
 const Q = require('q')
 
 // 手机号录入
@@ -45,13 +44,10 @@ var passwdInput = function () {
 var roleChoose = function () {
   var items = ['Passenger', 'Driver']
   var index = readline.keyInSelect(items, '请选择身份：')
-  console.log('index:' + index + '\nitems:' + items[index])
-  console.log(typeof (index))
   return index
 }
 // 信息保存
 var infoSave = function (phoneNum, passwd, role) {
-  console.log(phoneNum)
   var salt = Math.floor(Math.random() * 90000000) + 10000000 + ''
   var passwdStr = passwd + '#' + salt
   var passcode = md5(passwdStr).toString()
@@ -76,10 +72,9 @@ var infoSave = function (phoneNum, passwd, role) {
       salt: salt,
       ip: IPv4
     }
-    console.log(userInfo)
     Q.all([mysql.insert('users', userInfo)]).then(function (results) {
-      console.log('insert:' + results[0][0])
-      login.invoke()
+      console.log('注册成功！')
+      index.regOrLog()
     })
   })
 }
