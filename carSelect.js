@@ -1,40 +1,45 @@
 const readline = require('readline-sync')
-const fs = require('fs')
+const mysql = require('./mysql.js')
+const Q = require('q')
 
-var invoke = function (carIds) {
-  var cars = fs.readFileSync('./database/carInfo.txt', 'utf-8').split('\n')
-  if (carIds) {
-    cars = carIds.map(function (carId) {
-      return cars.filter(function (carInfo) {
-        if (carInfo.split('###')[0] === carId) {
-          return true
-        }
-      })[0]
-    })
-    console.log(cars.join('\n'))
-  }
-  return carSearch(cars)
+var invoke = function (callback) {
+  var answer = readline.question('请输入车子品牌：\n')
+  console.log(answer)
+  Q.all([mysql.find('cars', "car_brand='" + answer + "'", null)]).then(function (results) {
+    var cars = results[0][0]
+    if (cars.length === 0) {
+      console.log('没有找到相关的车子！')
+      return invoke(callback)
+    }
+    if (cars.lenght === 1) {
+      return callback(cars[0])
+    }
+    var car = carFilter(cars)
+    callback(car)
+  })
 }
 
-var carSearch = function (carInfo) {
-  var result = readline.question('请输入汽车的品牌、型号或者ID:\n')
-  var newArr = carInfo.filter(function (item) {
-    var itemArr = item.split('###')
-    if (itemArr[0] === result || itemArr[1] === result || itemArr[2] === result || itemArr[7] === result) {
+var carFilter = function (carArr) {
+  console.log('可供选择的车子列表：')
+  carArr.forEach(function (item) {
+    var logStr = 'ID:' + item.id + '；品牌:' + item.car_brand + '；车型:' + item.car_type + '；类别:' + item.category
+    console.log(logStr)
+  })
+  var answer = readline.question('请输入ID、车牌、车型或者类别选择车子：\n')
+  var cars = carArr.filter(function (item) {
+    if (item.id + '' === answer || item.car_band === answer || item.car_type === answer || item.category + '' === answer) {
       return true
     }
   })
-  if (newArr.length === 0) {
-    console.log('未查询到相关车辆!')
-    return carSearch(carInfo)
+  if (cars.length === 0) {
+    console.log('没有查询到相关的车子！')
+    return carFilter(carArr)
   }
-  if (newArr.length === 1) {
-    return newArr[0]
+  if (cars.length === 1) {
+    return cars[0]
   }
-  if (newArr.length >= 0) {
-    console.log(newArr.join('\n'))
-    return carSearch(newArr)
-  }
+  return carFilter(cars)
 }
 
 exports.invoke = invoke
+exports.carFilter = carFilter

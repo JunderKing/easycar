@@ -1,139 +1,182 @@
 const readline = require('readline-sync')
-const fs = require('fs')
 const addrSelect = require('./addrSelect.js')
 const carSelect = require('./carSelect.js')
+const mysql = require('./mysql.js')
+const index = require('./index.js')
+const Q = require('q')
+const readlineAsync = require('readline')
 
 var check = function (userId) {
-  var logs = fs.readFileSync('./database/pasngerLog.txt', 'utf-8').split('\n')
-  var myLogs = logs.filter(function (log) {
-    if (log.split('###')[0] === userId) {
-      return true
+  Q.all([mysql.find('pasnger_logs', 'pasnger_id=' + userId, null)]).then(function (results) {
+    var logArr = results[0][0].map(function (item) {
+      var str = '司机:' + item.driver_id + '；旅程:' + item.origin_id + '=>' + item.dest_id +
+        '；时间:' + item.start_time + '=>' + item.end_time + '；总花费:' + item.total_money + '元'
+      return str
+    })
+    if (logArr.length === 0) {
+      console.log('您还没有打车记录！')
+    } else {
+      console.log(logArr.join('\n'))
     }
+    index.checkOrCall(userId)
   })
-  if (myLogs.length > 0) {
-    console.log(myLogs.join('\n'))
-  } else {
-    console.log('还没有乘车记录')
-  }
 }
 
 var callCar = function (userId) {
   console.log('请输入起点：')
-  var origin = addrSelect.invoke()
-  if (!origin) {
-    return false
-  }
-  origin = origin.split('-')[3]
-  console.log('起点设定为：' + origin)
-  console.log('请输入目的地：')
-  var dest = addrSelect.invoke()
-  if (!dest) {
-    return false
-  }
-  dest = dest.split('-')[3]
-  console.log('终点设定为：' + dest)
-  var result = matchDriver(dest)
-  if (!result) {
-    console.log('该地址暂无司机接单!')
-    callCar(userId)
-    return false
-  }
-  var orderInfo = {
-    userId: userId,
-    driverId: result,
-    origin: origin,
-    dest: dest
-  }
-  var promptStr = '行程：' + origin + '=>' + dest + '\n司机手机号：' + result
-  console.log(promptStr)
-  start(orderInfo)
-  return true
+  addrSelect.invoke(function (origin) {
+    console.log('起点设定为：' + origin.addr)
+    console.log('请输入目的地：')
+    addrSelect.invoke(function (dest) {
+      console.log('终点设定为：' + dest.addr)
+      matchDriver(userId, origin, dest)
+    })
+  })
 }
 
-var matchDriver = function (endStr) {
-  var destData = fs.readFileSync('./database/driverInfo.txt', 'utf-8').split('\n')
-  var drivers = destData.filter(function (item) {
-    if (!item) {
-      return false
+var matchDriver = function (userId, origin, dest) {
+  var destId = dest.addr_id
+  Q.all([mysql.find('driver_dests', 'dest_id=' + destId, 'uid')]).then(function (results) {
+    if (results[0][0].length === 0) {
+      console.log('此目的地暂时无人接单！')
+      return callCar(userId)
     }
-    var destStr = item.split('###')[1]
-    var destArr = destStr.split('#-#')
-    return destArr.some(function (dest) {
-      if (dest === endStr) {
-        return true
-      }
+    var uidArr = results[0][0].map(function (item) {
+      return item.uid
     })
-  })
-  // console.log('drivers:' + drivers)
-  var len = drivers.length
-  if (len === 0) {
-    return false
-  }
-  var carIds = []
-  drivers.forEach(function (driverInfo) {
-    var carArr = driverInfo.split('###')[2].split('#-#')
-    carArr.forEach(function (item) {
-      var isExist = carIds.some(function (carId) {
-        if (item === carId) {
-          return true
+    Q.all([mysql.find('driver_cars', 'uid in (' + uidArr.join(',') + ')', null)]).then(function (results) {
+      var carIds = []
+      var allCars = results[0][0]
+      allCars.forEach(function (item) {
+        if (carIds.indexOf(item.car_id) === -1) {
+          carIds.push(item.car_id)
         }
       })
-      if (!isExist) {
-        carIds.push(item)
-      }
-    })
-  })
-  if (carIds.length === 0) {
-    return false
-  }
-  var car = carSelect.invoke(carIds)
-  var carInfoArr = car.split('###')
-  console.log('车子信息：' + carInfoArr[1] + ' ' + carInfoArr[2] + ' ' + carInfoArr[3] + ' ' + carInfoArr[7])
-  console.log('价格：' + '起步价-' + carInfoArr[4] + '；时长价-' + carInfoArr[5] + '；里程价-' + carInfoArr[6])
-  if (car) {
-    var carId = car.split('###')[0]
-    drivers = drivers.filter(function (driverInfo) {
-      return driverInfo.split('###')[2].split('#-#').some(function (id) {
-        if (id === carId) {
-          return true
+      Q.all([mysql.find('cars', 'id in (' + carIds.join(',') + ')', null)]).then(function (results) {
+        var carInfo = null
+        if (results[0][0].length === 1) {
+          carInfo = results[0][0][0]
+        } else {
+          carInfo = carSelect.carFilter(results[0][0])
         }
+        var driverList = allCars.filter(function (item) {
+          if (item.car_id === carInfo.id) {
+            return true
+          }
+        })
+        var promiseArr = driverList.map(function (item) {
+          return mysql.find('users', 'id=' + item.uid, null)
+        })
+        Q.all(promiseArr).then(function (results) {
+          var driverArrs = []
+          for (var i = 0; i < promiseArr.length; i++) {
+            var obj = results[i][0][0]
+            driverArrs.push(obj)
+          }
+          var avlDrivers = []
+          var timerId = setInterval(function () {
+            var driverInfo = driverArrs.shift()
+            avlDrivers.push(driverInfo)
+            var logStr = 'ID:' + driverInfo.id + '；手机号:' + driverInfo.tel + ' 抢单！'
+            console.log(logStr)
+          }, 2000)
+          const rl = readlineAsync.createInterface({
+            input: process.stdin,
+            output: process.stdout
+          })
+          rl.question('请输入司机ID选择相应司机：\n', function (answer) {
+            var result = avlDrivers.filter(function (item) {
+              if (item.id + '' === answer) {
+                return true
+              }
+            })
+            if (result.length === 0) {
+              console.log('未查询到相关司机！')
+            } else {
+              console.log('订单确认成功！')
+              clearInterval(timerId)
+              rl.close()
+              start(userId, result[0], carInfo, origin, dest)
+            }
+          })
+        })
       })
     })
-  }
-
-  len = drivers.length
-  if (len === 0) {
-    return false
-  }
-  var randomIndex = Math.floor(Math.random() * len)
-  var driver = drivers[randomIndex]
-  var phoneNum = driver.split('###')[0]
-  return phoneNum
+  })
 }
 
-var start = function (orderInfo) {
+var start = function (userId, driverInfo, carInfo, origin, dest) {
+  console.log('车子信息：' + carInfo.car_brand + carInfo.car_type)
+  console.log('司机电话：' + driverInfo.tel)
+  console.log('起点：' + origin.addr)
+  console.log('终点：' + dest.addr)
   var answer = readline.question('y-开始计价，n-取消订单:\n')
   if (answer.toLowerCase() === 'y') {
-    var date = new Date()
-    var timeStr = date.toTimeString().substring(0, 8)
-    var startTime = date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate() + '-' + timeStr
-    console.log('开始时间：' + startTime)
-    finish(orderInfo, startTime)
+    console.log('欢迎使用EasyCar，祝您旅途愉快！')
+    var condition = 'log_id=(select max(log_id) from pasnger_logs)'
+    Q.all([mysql.find('pasnger_logs', condition, 'log_id')]).then(function (results) {
+      var maxId = 0
+      if (results[0][0][0]) {
+        maxId = results[0][0][0].log_id
+      }
+      var log = {
+        log_id: maxId + 1,
+        pasnger_id: userId,
+        driver_id: driverInfo.id,
+        origin_id: origin.addr_id,
+        dest_id: dest.addr_id
+      }
+      Q.all([mysql.insert('pasnger_logs', log)]).then(function (results) {
+        var time = 0
+        var distance = 0
+        var currentMoney = 0
+        var shareTimer = setInterval(function () {
+          time++
+          var randomDist = Math.floor(Math.random() * 5 + 5) / 10.0
+          distance += randomDist
+        }, 5000)
+        var pasngerTimer = setInterval(function () {
+          currentMoney = carInfo.start_price + carInfo.time_price * time + carInfo.dist_price * distance.toFixed(1)
+          console.log('乘客=> 实时花费：' + currentMoney + '元')
+        }, 2000)
+        var driverTimer = setInterval(function () {
+          console.log('司机=> 时间:' + time + 'min；路程:' + distance.toFixed(1) + '公里')
+        }, 3000)
+        const rl = readlineAsync.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        })
+        rl.question('输入任意字符结算：\n', function () {
+          clearInterval(shareTimer)
+          clearInterval(driverTimer)
+          clearInterval(pasngerTimer)
+          console.log('请结算：')
+          console.log('行程：' + origin.addr + '=>' + dest.addr)
+          console.log('总用时：' + time + '分钟')
+          console.log('总距离：' + distance.toFixed(1) + '公里')
+          console.log('总花费：' + currentMoney + '元')
+          console.log('谢谢使用EasyCar，祝您生活愉快！')
+          finish(userId, log.log_id, carInfo, time, distance, currentMoney)
+          rl.close()
+        })
+      })
+    })
   } else if (answer.toLowerCase() === 'n') {
-    callCar(orderInfo)
+    callCar(userId)
   } else {
-    start(orderInfo)
+    start(userId, driverInfo, carInfo, origin, dest)
   }
 }
 
-var finish = function (orderInfo, startTime) {
-  readline.question('任意键结束用车')
-  var date = new Date()
-  var timeStr = date.toTimeString().substring(0, 8)
-  var endTime = date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate() + '-' + timeStr
-  console.log('结束时间：' + endTime + '\n谢谢使用EasyCar！')
-  var logStr = orderInfo.userId + '###' + orderInfo.driverId + '###' + orderInfo.origin + '=>' + orderInfo.dest + '###' + startTime + '=>' + endTime
-  fs.appendFileSync('./database/pasngerLog.txt', logStr + '\n')
+var finish = function (userId, logId, carInfo, time, distance, totalMoney) {
+  var keyValue = {
+    total_money: totalMoney,
+    dist_money: distance * carInfo.dist_price,
+    time_money: time * carInfo.time_price
+  }
+  Q.all([mysql.update('pasnger_logs', 'log_id=' + logId, keyValue)]).then(function (results) {
+    index.checkOrCall(userId)
+  })
 }
 
 exports.check = check

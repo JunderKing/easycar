@@ -1,135 +1,82 @@
-// const readline = require('readline-sync')
-const fs = require('fs')
 const addrSelect = require('./addrSelect.js')
 const carSelect = require('./carSelect.js')
+const Q = require('q')
+const index = require('./index.js')
+const mysql = require('./mysql.js')
 
 var check = function (userId) {
-  var driverDests = fs.readFileSync('./database/driverInfo.txt', 'utf-8').split('\n')
-  var myDests = driverDests.filter(function (item) {
-    if (item.split('###')[0] === userId) {
-      return true
-    }
-  })
-  if (myDests.length > 0) {
-    var destInfo = myDests[0].split('###')[1].split('#-#').join(',')
-    if (!destInfo) {
-      destInfo = '还没有输入接单地址'
-    }
-    var carInfo = myDests[0].split('###')[2].split('#-#').join(',')
-    if (!carInfo) {
-      carInfo = '还没有输入汽车'
-    }
-    var str = '我的爱车们:\n' + carInfo + '\n我的接单地址:\n' + destInfo
-    console.log(str)
-  } else {
-    console.log('没有详细信息!')
-  }
-}
-
-var input = function (userId) {
-  console.log('请输入接单地址：')
-  var dest = addrSelect.invoke()
-  if (!dest) {
-    return false
-  }
-  var destStr = dest.split('-')[3]
-  var result = destAppend(userId, destStr)
-  if (!result) {
-    console.log('此地址已存在!')
-    input(userId)
-  }
-}
-
-var destAppend = function (userId, dest) {
-  var driverDests = fs.readFileSync('./database/driverInfo.txt', 'utf-8').split('\n')
-  var myDests = driverDests.filter(function (item) {
-    if (item.split('###')[0] === userId) {
-      return true
-    }
-  })
-  if (myDests.length === 0) {
-    var destStr = userId + '###' + dest
-    fs.appendFileSync('./database/driverInfo.txt', destStr + '\n')
-    return true
-  } else {
-    var myDestArr = myDests[0].split('###')[1].split('#-#')
-    var isExist = myDestArr.some(function (item) {
-      if (item === dest) {
-        return true
-      }
+  Q.all([mysql.find('driver_cars', 'uid=' + userId, null), mysql.find('driver_dests', 'uid=' + userId, null)]).then(function (results) {
+    var myCars = results[0][0].map(function (item) {
+      return item.car_id
     })
-    if (isExist) {
-      return false
+    var myDests = results[1][0].map(function (item) {
+      return item.dest_id
+    })
+    if (myCars.length === 0) {
+      console.log('还没有录入我的车子！')
     } else {
-      var newDests = driverDests.map(function (item) {
-        var itemArr = item.split('###')
-        if (itemArr[0] === userId) {
-          if (!itemArr[1]) {
-            itemArr[1] = dest
-          } else {
-            itemArr[1] += '#-#' + dest
-          }
-          var destStr = itemArr.join('###')
-          return destStr
-        }
-        return item
-      })
-      fs.writeFileSync('./database/driverInfo.txt', newDests.join('\n'))
-      return true
+      console.log('我的车子：\n' + myCars.join(','))
     }
-  }
-}
-
-var addCar = function (userId) {
-  var car = carSelect.invoke()
-  if (!car) {
-    return false
-  }
-  var carId = car.split('###')[0]
-  var drivers = fs.readFileSync('./database/driverInfo.txt', 'utf-8')
-  var driverArr = drivers.split('\n')
-  var myInfo = driverArr.filter(function (item) {
-    var driverId = item.split('###')[0]
-    if (userId === driverId) {
-      return true
+    if (myDests.lenght === 0) {
+      console.log('还没有录入接单地址！')
+    } else {
+      console.log('我的接单地址：\n' + myDests.join(','))
     }
+    index.checkOrInput(userId)
   })
-  if (myInfo.length === 0) {
-    var infoStr = userId + '######' + carId
-    fs.appendFileSync('./database/driverInfo.txt', infoStr)
-  }
-  if (myInfo.length === 1) {
-    var myCars = []
-    if (myInfo[0].split('###').length > 2) {
-      myCars = myInfo[0].split('###')[2].split('#-#')
-    }
-    var isExist = myCars.some(function (item) {
-      if (item === carId) {
-        return true
-      }
-    })
-    if (isExist) {
-      console.log('此车已经添加，请勿重复添加')
-      return addCar(userId)
-    }
-    var newInfo = driverArr.map(function (item) {
-      if (item.split('###')[0] === userId) {
-        var newStr = null
-        if (myCars.length === 0) {
-          newStr = item + '###' + carId
-        } else {
-          newStr = item + '#-#' + carId
-        }
-        return newStr
-      }
-      return item
-    })
-    fs.writeFileSync('./database/driverInfo.txt', newInfo.join('\n'))
-    console.log('成功添加' + car)
-    return true
-  }
 }
 
-exports.input = input
+var destAdd = function (userId) {
+  console.log('请输入接单地址：')
+  addrSelect.invoke(function (addr) {
+    Q.all([mysql.find('driver_dests', 'uid=' + userId, 'dest_id')]).then(function (results) {
+      var myDestId = results[0][0]
+      var isExist = myDestId.some(function (item) {
+        if (item.dest_id === addr.addr_id) {
+          return true
+        }
+      })
+      if (isExist) {
+        console.log('此地址已经录入，请勿重复录入！')
+        return destAdd(userId)
+      }
+      var newDest = {
+        uid: userId,
+        dest_id: addr.addr_id
+      }
+      Q.all([mysql.insert('driver_dests', newDest)]).then(function (results) {
+        console.log('录入成功 ！')
+        console.log('新录入地址:' + newDest.dest_id)
+        return index.checkOrInput(userId)
+      })
+    })
+  })
+}
+
+var carAdd = function (userId) {
+  carSelect.invoke(function (carInfo) {
+    Q.all([mysql.find('driver_cars', 'uid=' + userId, null)]).then(function (results) {
+      var myCars = results[0][0]
+      var isExist = myCars.some(function (item) {
+        if (item.car_id === carInfo.id) {
+          return true
+        }
+      })
+      if (isExist) {
+        console.log('此车已经录入，请勿重复录入!')
+        return carAdd(userId)
+      }
+      var newCar = {
+        uid: userId,
+        car_id: carInfo.id
+      }
+      Q.all([mysql.insert('driver_cars', newCar)]).then(function (results) {
+        return index.checkOrInput(userId)
+      })
+    })
+  })
+}
+
 exports.check = check
-exports.addCar = addCar
+exports.destAdd = destAdd
+exports.carAdd = carAdd

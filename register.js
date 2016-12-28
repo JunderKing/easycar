@@ -1,48 +1,28 @@
 const readline = require('readline-sync')
-const fs = require('fs')
 const md5 = require('crypto-js/md5')
 const mysql = require('./mysql.js')
+const index = require('./index.js')
+const login = require('./login.js')
+const Q = require('q')
 
-var invoke = function () {
-  var phoneNum = phoneNumInput()
-  if (!phoneNum) {
-    return false
-  }
-  var passwd = passwdInput()
-  if (!passwd) {
-    return false
-  }
-  var role = roleChoose()
-  if (!role) {
-    return false
-  }
-  infoSave(phoneNum, passwd, role)
-  return true
-}
 // 手机号录入
-var phoneNumInput = function () {
+var invoke = function () {
   var answer = readline.question('请输入您的手机号（输入quit退出注册）:\n')
   if (answer === 'quit') {
-    return false
+    return index.regOrLog()
   }
   if (!(/^1[3|4|5|7|8]\d{9}$/.test(answer))) {
-    console.log('Phone number is not correct!')
-    phoneNumInput()
-    return
+    console.log('手机号输入有误!')
+    return invoke()
   }
-  mysql.find('users', 'tel=' + answer, null, function (error, result) {
-    if (error) {
-      console.log(error)
-      return
-    }
-    if (result.length > 0) {
+  Q.all([mysql.find('users', "tel='" + answer + "'", null)]).then(function (results) {
+    if (results[0][0].length > 0) {
       console.log('此用户已经注册！')
-      phoneNumInput()
-    } else {
-      var passwd = passwdInput()
-      var role = roleChoose()
-      infoSave(answer, passwd, role)
+      return invoke()
     }
+    var passwd = passwdInput()
+    var role = roleChoose()
+    infoSave(answer, passwd, role)
   })
 }
 // 密码录入
@@ -63,19 +43,18 @@ var passwdInput = function () {
 }
 // 角色选择
 var roleChoose = function () {
-  var items = ['Driver', 'Passenger']
+  var items = ['Passenger', 'Driver']
   var index = readline.keyInSelect(items, '请选择身份：')
   console.log('index:' + index + '\nitems:' + items[index])
-  return items[index]
+  console.log(typeof (index))
+  return index
 }
 // 信息保存
 var infoSave = function (phoneNum, passwd, role) {
+  console.log(phoneNum)
   var salt = Math.floor(Math.random() * 90000000) + 10000000 + ''
   var passwdStr = passwd + '#' + salt
   var passcode = md5(passwdStr).toString()
-  var date = new Date()
-  var timeStr = date.toTimeString().substring(0, 8)
-  var dateStr = date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate() + '-' + timeStr
   var os = require('os')
   var IPv4 = null
   for (var i = 0; i < os.networkInterfaces().en0.length; i++) {
@@ -83,7 +62,26 @@ var infoSave = function (phoneNum, passwd, role) {
       IPv4 = os.networkInterfaces().en0[i].address
     }
   }
-  var infoStr = phoneNum + '###' + role + '###' + passcode + '###' + salt + '###' + IPv4 + '###' + dateStr
-  fs.appendFileSync('./database/users.txt', infoStr + '\n')
+  var condition = 'id=(select max(id) from users)'
+  Q.all([mysql.find('users', condition, 'id')]).then(function (results) {
+    var maxid = 0
+    if (results[0][0][0]) {
+      maxid = results[0][0][0].id
+    }
+    var userInfo = {
+      id: maxid + 1,
+      tel: phoneNum,
+      role: role,
+      cipher: passcode,
+      salt: salt,
+      ip: IPv4
+    }
+    console.log(userInfo)
+    Q.all([mysql.insert('users', userInfo)]).then(function (results) {
+      console.log('insert:' + results[0][0])
+      login.invoke()
+    })
+  })
 }
+
 exports.invoke = invoke

@@ -1,7 +1,5 @@
 const mysql = require('mysql')
-// const co = require('co')
-// const thunkify = require('thunkify')
-// const fs = require('fs')
+const Q = require('q')
 
 var db = mysql.createConnection({
   user: 'myuser',
@@ -9,15 +7,14 @@ var db = mysql.createConnection({
   database: 'easycar'
 })
 
-db.connect()
+db.connect(function (error, result) {
+  if (error) {
+    return console.log(error)
+  }
+//  console.log('connection ok: ' + db.threadId)
+})
 
-// var dbquery = thunkify(db.query)
-// co(function* () {
-//  var result = yield dbquery('select * from addrs')
-//  console.log(result)
-// })
-
-var insert = function (table, obj, callback) {
+var insert = function (table, obj) {
   if (!table || !obj) {
     return false
   }
@@ -25,56 +22,67 @@ var insert = function (table, obj, callback) {
   var values = []
   for (var key in obj) {
     keys.push(key)
+    //    console.log
+    if (typeof (obj[key]) === 'string') {
+      obj[key] = "'" + obj[key] + "'"
+    }
     values.push(obj[key])
   }
-  var command = 'insert into ' + table + '(' + keys.join(',') + ') values(' + values.join(',') + ')'
-  db.query(command, callback)
+  var command = 'INSERT INTO ' + table + '(' + keys.join(',') + ') VALUES(' + values.join(',') + ')'
+  //  console.log(command)
+  var defered = Q.defer()
+  db.query(command, defered.makeNodeResolver())
+  return defered.promise
 }
 
-var find = function (table, condition, field, callback) {
+var find = function (table, condition, field) {
   if (!field) {
     field = '*'
   }
   if (condition) {
-    condition = ' where ' + condition
+    condition = ' WHERE ' + condition
   } else {
     condition = ''
   }
-  var command = 'select ' + field + ' from ' + table + condition
-  console.log(command)
-  db.query(command, callback)
+  var command = 'SELECT ' + field + ' FROM ' + table + condition
+  //  console.log(command)
+  var defered = Q.defer()
+  db.query(command, defered.makeNodeResolver())
+  return defered.promise
 }
 
-var update = function (table, condition, obj, callback) {
+var update = function (table, condition, obj) {
   if (!condition || !obj) {
     return false
   }
-  condition = ' where ' + condition
+  condition = ' WHERE ' + condition
   var strArr = []
   for (var key in obj) {
     strArr.push(key + '=' + obj[key])
   }
-  var command = 'update ' + table + ' set ' + strArr.join(',') + condition
-  db.query(command, callback)
+  var command = 'UPDATE ' + table + ' SET ' + strArr.join(',') + condition
+  var defered = Q.defer()
+  db.query(command, defered.makeNodeResolver())
+  return defered.promise
 }
 
-var remove = function (table, condition, callback) {
+var remove = function (table, condition) {
   if (!condition) {
     return false
   }
-  condition = ' where ' + condition
-  var command = 'delete from ' + table + condition
-  db.query(command, callback)
+  condition = ' WHERE ' + condition
+  var command = 'DELETE FROM ' + table + condition
+  var defered = Q.defer()
+  db.query(command, defered.makeNodeResolver())
+  return defered.promise
 }
 
-// find('addrs', null, null, function (error, result) {
-//  if (error) {
-//    console.log(error)
-//    return
-//  }
-// console.log(result[0].addr_id)
-// })
+var close = function () {
+  db.end()
+}
+
 exports.insert = insert
 exports.update = update
 exports.find = find
 exports.remove = remove
+exports.close = close
