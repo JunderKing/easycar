@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+    <script type="text/javascript" src="/client/ajax.js"></script>
+    <script type="text/javascript" src="/client/sign.js"></script>
+    <script type="text/javascript" src="/client/md5.js"></script>
+    <script type="text/javascript" src="/client/pasnger/callCar.js"></script>
+  </head>
+  <body>
+    <div class="origin-box">
+      <input type="text" name="origin" value="" placeholder="请输入起点" onkeyup="searchAddr(this.value, this)">
+    </div>
+    <div class="dest-box">
+      <input type="text" name="dest" value="" placeholder="请输入终点" onkeyup="searchAddr(this.value, this)">
+    </div>
+    <div class="cate-box">
+      <select name="category" hidden="true" onchange="cateFilter()">
+      </select>
+    </div>
+    <button type="button" name="call-car" onclick="callCar()" hidden="true">去订车</button>
+    <div class="order-box">
+    </div>
+    <button type="button" name="start" onclick="start()" hidden="true">开始计价</button>
+    <div class="money-box">
+      <p class="pasnger-log"></p>
+      <p class="driver-log"></p>
+    </div>
+    <button type="button" name="end" onclick="end()" hidden="true">结算</button>
+    <div class="">
+      <p class="settlement"></p>
+    </div>
+  </body>
+</html>

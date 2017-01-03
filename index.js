@@ -3,6 +3,7 @@ const register = require('./register.js')
 const login = require('./login.js')
 const pasnger = require('./pasnger.js')
 const driver = require('./driver.js')
+const server = require('./server/server.js')
 
 var prompt = inquirer.createPromptModule()
 var regOrLog = function () {
@@ -66,6 +67,7 @@ var checkOrInput = function (userId) {
 }
 
 regOrLog()
+server.start()
 
 exports.regOrLog = regOrLog
 exports.checkOrInput = checkOrInput
