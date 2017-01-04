@@ -3,11 +3,15 @@ window.onload = function (){
   if (!uid) {
     return console.log('Pleast login first!')
   }
+  console.log(typeof(uid));
   var obj = {
-    uid: uid
+    uid: uid,
+    role: '0'
   }
   var signature = sign(obj)
-  request("GET", '/getrecordlist?uid='+uid+"&sign="+signature, null, function(logJson){
+  var url = '/getrecordlist?uid='+uid+"&role="+obj.role+"&sign="+signature
+  console.log(url);
+  request("GET", url, null, function(logJson){
     var logObj = JSON.parse(logJson)
     var logArr = logObj.arr
     console.log(logArr)
@@ -29,7 +33,6 @@ window.onload = function (){
       var a = null
       var li = null
       logArr.forEach(function(item){
-        console.log(item);
         a = document.createElement('a')
         a.innerHTML = item.total_money
         a.onclick = function(){

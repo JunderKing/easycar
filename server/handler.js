@@ -293,11 +293,18 @@ exports.getrecordlist = function(req, res) {
     var queryStr = url.parse(req.url).query
     var queryObj = querystring.parse(queryStr)
     var uid = queryObj.uid
-    console.log('uid:' + uid);
-    if (!uid) {
+    var role = queryObj.role
+    console.log('uid:' + uid+"role:"+role);
+    if (!uid||!role) {
         return notfound(res)
     }
-    mysql.find('pasnger_logs', "pasnger_id=" + uid, null).then(function(result) {
+    var condition = null
+    if (role==='0') {
+      condition = "pasnger_id=" + uid
+    } else if (role==='1') {
+      condition = "driver_id=" + uid
+    }
+    mysql.find('pasnger_logs', condition, null).then(function(result) {
         if (result[0].length === 0) {
             return notfound(res)
         }
@@ -468,6 +475,4 @@ exports.addcar = function(req, res){
   })
 }
 
-exports.getorderlist = function(req, res) {}
-exports.getorderdetail = function(req, res) {}
 exports.notfound = notfound
